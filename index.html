@@ -1,0 +1,831 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Parachute Descent Calculator</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 2em;
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            opacity: 0.9;
+            font-size: 1.1em;
+        }
+        
+        .content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            padding: 30px;
+        }
+        
+        .panel {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 25px;
+            border: 1px solid #e0e0e0;
+        }
+        
+        .panel h2 {
+            color: #2c3e50;
+            margin-bottom: 20px;
+            font-size: 1.4em;
+            border-bottom: 3px solid #667eea;
+            padding-bottom: 10px;
+        }
+        
+        .input-group {
+            margin-bottom: 20px;
+        }
+        
+        .input-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #34495e;
+            font-weight: 600;
+            font-size: 0.95em;
+        }
+        
+        .input-group input, .input-group select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            font-size: 1em;
+            transition: border-color 0.3s;
+        }
+        
+        .input-group input:focus, .input-group select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .input-group small {
+            display: block;
+            margin-top: 5px;
+            color: #7f8c8d;
+            font-size: 0.85em;
+        }
+        
+        .calculate-btn {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1.1em;
+            font-weight: bold;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            margin-top: 20px;
+        }
+        
+        .calculate-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+        }
+        
+        .calculate-btn:active {
+            transform: translateY(0);
+        }
+        
+        .results {
+            grid-column: 1 / -1;
+        }
+        
+        .result-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+        
+        .result-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .result-card h3 {
+            color: #2c3e50;
+            font-size: 0.9em;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .result-card .value {
+            font-size: 2em;
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 5px;
+        }
+        
+        .result-card .unit {
+            color: #7f8c8d;
+            font-size: 0.9em;
+        }
+        
+        .warning {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            border-radius: 6px;
+            margin-top: 20px;
+        }
+        
+        .warning h4 {
+            color: #856404;
+            margin-bottom: 10px;
+        }
+        
+        .warning ul {
+            margin-left: 20px;
+            color: #856404;
+        }
+        
+        .warning li {
+            margin-bottom: 5px;
+        }
+        
+        .info {
+            background: #d1ecf1;
+            border-left: 4px solid #17a2b8;
+            padding: 15px;
+            border-radius: 6px;
+            margin-top: 20px;
+        }
+        
+        .info h4 {
+            color: #0c5460;
+            margin-bottom: 10px;
+        }
+        
+        .info p {
+            color: #0c5460;
+            line-height: 1.6;
+        }
+        
+        .info ul {
+            margin-left: 20px;
+            color: #0c5460;
+            line-height: 1.6;
+        }
+        
+        .danger {
+            background: #f8d7da;
+            border-left: 4px solid #dc3545;
+        }
+        
+        .danger h4 {
+            color: #721c24;
+        }
+        
+        .danger ul {
+            color: #721c24;
+        }
+        
+        .success {
+            background: #d4edda;
+            border-left: 4px solid #28a745;
+        }
+        
+        .success h4 {
+            color: #155724;
+        }
+        
+        .success ul {
+            color: #155724;
+        }
+        
+        .chart-container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .chart-container h3 {
+            color: #2c3e50;
+            margin-bottom: 15px;
+            font-size: 1.1em;
+        }
+        
+        @media (max-width: 968px) {
+            .content {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🪂 Parachute Descent Calculator</h1>
+            <p>Dual-Mass Recovery System Analysis with Shock Cord Dynamics</p>
+        </div>
+        
+        <div class="content">
+            <div class="panel">
+                <h2>Flight Parameters</h2>
+                
+                <div class="input-group">
+                    <label for="apogee">Apogee Altitude (AGL)</label>
+                    <input type="number" id="apogee" value="75000" min="45000" max="100000" step="1000">
+                    <small>45,000 - 100,000 feet above ground level</small>
+                </div>
+                
+                <div class="input-group">
+                    <label for="groundASL">Ground Elevation (ASL)</label>
+                    <input type="number" id="groundASL" value="3000" min="2000" max="4000" step="100">
+                    <small>2,000 - 4,000 feet above sea level</small>
+                </div>
+                
+                <div class="input-group">
+                    <label for="chuteType">Rocketman Parachute Type</label>
+                    <select id="chuteType">
+                        <option value="0.97">Standard / Pro Experimental (Cd = 0.97)</option>
+                        <option value="1.6">Elliptical (Cd = 1.6)</option>
+                        <option value="2.2">High Performance CD 2.2 (Cd = 2.2)</option>
+                    </select>
+                </div>
+                
+                <div class="input-group">
+                    <label for="chuteDiameter">Parachute Diameter (ft)</label>
+                    <input type="number" id="chuteDiameter" value="8" min="1" max="30" step="0.5">
+                    <small>Nominal diameter of parachute</small>
+                </div>
+            </div>
+            
+            <div class="panel">
+                <h2>Mass & Recovery System</h2>
+                
+                <div class="input-group">
+                    <label for="mass1">Mass 1 - Main Body (lbs)</label>
+                    <input type="number" id="mass1" value="50" min="1" max="500" step="1">
+                    <small>Heavy metallic airframe (impacts first)</small>
+                </div>
+                
+                <div class="input-group">
+                    <label for="mass2">Mass 2 - Nose Cone (lbs)</label>
+                    <input type="number" id="mass2" value="10" min="1" max="100" step="1">
+                    <small>Fiberglass nose with payload (impacts second)</small>
+                </div>
+                
+                <div class="input-group">
+                    <label for="shockCord">Shock Cord Length (ft)</label>
+                    <input type="number" id="shockCord" value="100" min="10" max="200" step="10">
+                    <small>Distance between Mass 1 and Mass 2</small>
+                </div>
+            </div>
+            
+            <div class="panel results" style="grid-column: 1 / -1;">
+                <h2>Results</h2>
+                <button class="calculate-btn" onclick="calculate()">Calculate Descent Profile</button>
+                <div id="resultsContainer"></div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        let velocityChart = null;
+        
+        function calculate() {
+            // Get inputs
+            const apogeeAGL = parseFloat(document.getElementById('apogee').value);
+            const groundASL = parseFloat(document.getElementById('groundASL').value);
+            const Cd = parseFloat(document.getElementById('chuteType').value);
+            const diameter = parseFloat(document.getElementById('chuteDiameter').value);
+            const mass1 = parseFloat(document.getElementById('mass1').value);
+            const mass2 = parseFloat(document.getElementById('mass2').value);
+            const shockCordLength = parseFloat(document.getElementById('shockCord').value);
+            
+            const apogeeASL = apogeeAGL + groundASL;
+            const totalMass = mass1 + mass2;
+            
+            // Convert to SI units for calculations
+            const mass1_kg = mass1 * 0.453592;
+            const mass2_kg = mass2 * 0.453592;
+            const totalMass_kg = totalMass * 0.453592;
+            const diameter_m = diameter * 0.3048;
+            const shockCord_m = shockCordLength * 0.3048;
+            
+            // Parachute area
+            const area_m2 = Math.PI * Math.pow(diameter_m / 2, 2);
+            
+            // Calculate air density at different altitudes using barometric formula
+            function getAirDensity(altitudeASL_ft) {
+                const h = altitudeASL_ft * 0.3048; // convert to meters
+                const T0 = 288.15; // sea level standard temperature (K)
+                const L = 0.0065; // temperature lapse rate (K/m)
+                const p0 = 101325; // sea level standard pressure (Pa)
+                const R = 8.31447; // universal gas constant
+                const M = 0.0289644; // molar mass of air (kg/mol)
+                const g = 9.80665; // gravity
+                
+                const T = T0 - L * h;
+                const p = p0 * Math.pow(T / T0, (g * M) / (R * L));
+                const rho = (p * M) / (R * T);
+                
+                return rho;
+            }
+            
+            // Terminal velocity calculation
+            function terminalVelocity(mass_kg, altitude_ft) {
+                const rho = getAirDensity(altitude_ft);
+                const vt = Math.sqrt((2 * mass_kg * 9.80665) / (rho * Cd * area_m2));
+                return vt; // m/s
+            }
+            
+            // Calculate descent - using numerical integration
+            const dt = 1.0; // time step in seconds
+            let altitude = apogeeASL;
+            let velocity = 0;
+            let time = 0;
+            
+            // Arrays for graphing
+            const timeData = [];
+            const altitudeData = [];
+            const velocityData = [];
+            const altitudeASLData = [];
+            
+            // Descend to ground level
+            while (altitude > groundASL) {
+                const vt = terminalVelocity(totalMass_kg, altitude);
+                const rho = getAirDensity(altitude);
+                
+                // Calculate drag force and acceleration more accurately
+                const drag_force = 0.5 * rho * Cd * area_m2 * velocity * velocity;
+                const weight = totalMass_kg * 9.80665;
+                const net_force = weight - drag_force;
+                const acceleration = net_force / totalMass_kg;
+                
+                // Update velocity and altitude
+                velocity += acceleration * dt;
+                
+                // Ensure velocity doesn't exceed reasonable bounds
+                if (velocity > vt * 1.5) {
+                    velocity = vt * 1.5;
+                }
+                
+                const altitude_change = velocity * dt * 3.28084; // convert m/s to ft
+                altitude -= altitude_change;
+                time += dt;
+                
+                // Store data for graphs (every 5 seconds to keep smooth but not too dense)
+                if (time % 5 === 0 || altitude <= groundASL + 100 || time < 10) {
+                    timeData.push(time / 60); // convert to minutes
+                    altitudeData.push(Math.max(0, altitude - groundASL)); // AGL
+                    altitudeASLData.push(Math.round(altitude)); // ASL for velocity chart
+                    velocityData.push(Math.abs(velocity) * 3.28084); // ft/s
+                }
+                
+                // Prevent overshooting
+                if (altitude < groundASL) {
+                    altitude = groundASL;
+                    timeData.push(time / 60);
+                    altitudeData.push(0);
+                    altitudeASLData.push(Math.round(groundASL));
+                    velocityData.push(Math.abs(velocity) * 3.28084);
+                    break;
+                }
+            }
+            
+            // Terminal velocity at impact altitude
+            const vt_ground_total = terminalVelocity(totalMass_kg, groundASL);
+            const mass1_vt_ground = terminalVelocity(mass1_kg, groundASL);
+            
+            // Impact velocity for Mass 1 (assumes terminal velocity achieved)
+            const mass1_impact_ms = Math.min(velocity, vt_ground_total);
+            const mass1_impact_fps = mass1_impact_ms * 3.28084;
+            
+            // Mass 2 deceleration calculation
+            // After Mass 1 impacts, Mass 2 is now alone under the parachute
+            // It continues at the system velocity but now decelerates over the shock cord length
+            const mass2_velocity_before_fps = mass1_impact_fps;
+            const mass2_velocity_before = mass1_impact_ms;
+            
+            // Calculate terminal velocity for Mass 2 alone under the parachute
+            const mass2_terminal_velocity = terminalVelocity(mass2_kg, groundASL);
+            const mass2_terminal_velocity_fps = mass2_terminal_velocity * 3.28084;
+            
+            // Use numerical integration to accurately calculate deceleration over shock cord length
+            let v_m2 = mass2_velocity_before; // m/s
+            let distance_traveled = 0; // meters
+            const dt_small = 0.001; // very small time step for accuracy (seconds)
+            let decel_time = 0;
+            
+            const rho = getAirDensity(groundASL);
+            
+            while (distance_traveled < shockCord_m && v_m2 > mass2_terminal_velocity) {
+                // Calculate drag force on Mass 2 alone
+                const drag_force = 0.5 * rho * Cd * area_m2 * v_m2 * v_m2;
+                const weight = mass2_kg * 9.80665;
+                
+                // Net force (gravity minus drag)
+                const net_force = weight - drag_force;
+                const accel = net_force / mass2_kg;
+                
+                // Update velocity and distance
+                v_m2 += accel * dt_small;
+                distance_traveled += v_m2 * dt_small;
+                decel_time += dt_small;
+                
+                // Safety check - don't go below terminal velocity
+                if (v_m2 < mass2_terminal_velocity) {
+                    v_m2 = mass2_terminal_velocity;
+                    break;
+                }
+            }
+            
+            const mass2_impact_ms = v_m2;
+            const mass2_impact_fps = mass2_impact_ms * 3.28084;
+            
+            // Calculate average deceleration
+            const velocity_change_ms = mass2_velocity_before - mass2_impact_ms;
+            const avg_deceleration_ms2 = velocity_change_ms / decel_time;
+            const deceleration_g = avg_deceleration_ms2 / 9.80665;
+            
+            // Shock load on Mass 1 when cord becomes taut
+            const momentum_transfer = mass2_kg * mass2_velocity_before;
+            const impulse_duration = 0.1; // seconds
+            const peak_force_N = momentum_transfer / impulse_duration;
+            const shock_load_g = (peak_force_N / mass1_kg) / 9.80665;
+            
+            // Descent time
+            const descentTime_min = time / 60;
+            
+            // Display results
+            let html = '<div class="result-grid">';
+            
+            html += `
+                <div class="result-card">
+                    <h3>Total Descent Time</h3>
+                    <div class="value">${descentTime_min.toFixed(1)}</div>
+                    <div class="unit">minutes</div>
+                </div>
+                
+                <div class="result-card">
+                    <h3>Mass 2 Terminal Velocity (Alone)</h3>
+                    <div class="value">${mass2_terminal_velocity_fps.toFixed(1)}</div>
+                    <div class="unit">ft/s (at ${groundASL} ft ASL)</div>
+                </div>
+                
+                <div class="result-card">
+                    <h3>Mass 1 Impact Velocity</h3>
+                    <div class="value">${mass1_impact_fps.toFixed(1)}</div>
+                    <div class="unit">ft/s</div>
+                </div>
+                
+                <div class="result-card">
+                    <h3>Mass 2 Impact Velocity</h3>
+                    <div class="value">${mass2_impact_fps.toFixed(1)}</div>
+                    <div class="unit">ft/s</div>
+                </div>
+                
+                <div class="result-card">
+                    <h3>Effective Decel Distance</h3>
+                    <div class="value">${(shockCord_m * 3.28084).toFixed(1)}</div>
+                    <div class="unit">feet</div>
+                </div>
+            `;
+            
+            html += '</div>';
+            
+            // Add chart
+            html += `
+                <div class="chart-container" style="margin-top: 20px;">
+                    <h3>Descent Velocity vs Altitude ASL</h3>
+                    <canvas id="velocityChart"></canvas>
+                </div>
+            `;
+            
+            // Add terminal velocity physics explanation
+            const velocity_ratio = mass2_velocity_before_fps / mass2_terminal_velocity_fps;
+            const is_rapid_decel = velocity_ratio > 2.5;
+            
+            // Calculate Mass 2 terminal velocity at a few low altitudes
+            const m2_vt_2000 = terminalVelocity(mass2_kg, 2000) * 3.28084;
+            const m2_vt_3000 = terminalVelocity(mass2_kg, 3000) * 3.28084;
+            const m2_vt_4000 = terminalVelocity(mass2_kg, 4000) * 3.28084;
+            
+            html += `
+                <div class="info" style="margin-top: 20px;">
+                    <h4>⚡ Mass 2 Terminal Velocity (varies with altitude ASL)</h4>
+                    <p><strong>Mass 2 alone under parachute at low altitudes:</strong></p>
+                    <ul>
+                        <li>At 2,000 ft ASL: ${m2_vt_2000.toFixed(1)} ft/s</li>
+                        <li>At 3,000 ft ASL: ${m2_vt_3000.toFixed(1)} ft/s</li>
+                        <li>At 4,000 ft ASL: ${m2_vt_4000.toFixed(1)} ft/s</li>
+                        <li>At ${groundASL} ft ASL (landing): ${mass2_terminal_velocity_fps.toFixed(1)} ft/s</li>
+                    </ul>
+                    <p style="margin-top: 10px;"><em>Terminal velocity decreases at lower altitudes due to higher air density.</em></p>
+                </div>
+                
+                <div class="info" style="margin-top: 20px;">
+                    <h4>💥 Shock Load Justification</h4>
+                    <p><strong>When Mass 1 impacts and the shock cord becomes taut:</strong></p>
+                    <ul>
+                        <li>Mass 2 momentum: ${(mass2_kg * mass2_velocity_before).toFixed(1)} kg·m/s</li>
+                        <li>Impulse duration (estimated): 0.1 seconds</li>
+                        <li>Peak force on cord: ${(momentum_transfer / impulse_duration).toFixed(0)} N = ${((momentum_transfer / impulse_duration) * 0.224809).toFixed(0)} lbs</li>
+                        <li>Shock transmitted to Mass 1: ${shock_load_g.toFixed(1)} G's = ${(shock_load_g * mass1).toFixed(0)} lbs force</li>
+                    </ul>
+                    <p style="margin-top: 10px;"><strong>Critical factors:</strong></p>
+                    <ul>
+                        <li>Shock cord material and condition (worn cords = higher peak loads)</li>
+                        <li>Shock cord attachment strength must exceed ${(shock_load_g * mass1 * 1.5).toFixed(0)} lbs (1.5x safety factor)</li>
+                        <li>Mass 1 mounting points must handle ${(shock_load_g * mass1).toFixed(0)} lb shock</li>
+                        <li>Rapid load application (0.1s) may cause stress concentrations</li>
+                    </ul>
+                </div>
+            `;
+            
+            html += `
+                <div class="info">
+                    <h4>📊 Terminal Velocity Physics</h4>
+                    <p><strong>KEY INSIGHT:</strong> Mass 2 starts at ${mass2_velocity_before_fps.toFixed(1)} ft/s but its terminal velocity alone is only ${mass2_terminal_velocity_fps.toFixed(1)} ft/s at ${groundASL} ft ASL (${velocity_ratio.toFixed(1)}x faster).</p>
+                    
+                    ${is_rapid_decel ? `
+                    <p style="margin-top: 10px; color: #d9534f; font-weight: bold;">⚠️ RAPID DECELERATION ZONE: When velocity is ${velocity_ratio.toFixed(1)}x terminal velocity, drag force is ${Math.pow(velocity_ratio, 2).toFixed(0)}x normal (drag ∝ v²).</p>
+                    <p style="margin-top: 10px;">This means <strong>most deceleration happens in the first 10-20 feet</strong> of shock cord regardless of total length. Extending shock cord beyond ~30 ft provides minimal additional deceleration benefit.</p>
+                    ` : `
+                    <p style="margin-top: 10px;">Mass 2 is close to its terminal velocity, so deceleration will be gradual over the shock cord length.</p>
+                    `}
+                    
+                    <p style="margin-top: 10px;"><strong>TO CONTROL MASS 2 IMPACT VELOCITY:</strong></p>
+                    <ul>
+                        <li><strong>Target terminal velocity</strong> determines impact velocity (Mass 2 will approach terminal velocity quickly)</li>
+                        <li>To increase Mass 2 terminal velocity: use smaller parachute, lower Cd, or heavier Mass 2</li>
+                        <li>To decrease Mass 2 terminal velocity: use larger parachute, higher Cd, or lighter Mass 2</li>
+                        <li>Shock cord length helps, but has diminishing returns once Mass 2 approaches terminal velocity</li>
+                    </ul>
+                    
+                    <p style="margin-top: 10px;"><strong>CURRENT STATUS:</strong></p>
+                    <ul>
+                        <li>Velocity reduction over ${shockCordLength} ft: ${(mass2_velocity_before_fps - mass2_impact_fps).toFixed(1)} ft/s (${((mass2_velocity_before_fps - mass2_impact_fps) / mass2_velocity_before_fps * 100).toFixed(0)}%)</li>
+                        <li>Mass 2 impact is ${(mass2_impact_fps - mass2_terminal_velocity_fps).toFixed(1)} ft/s above terminal velocity</li>
+                        <li>Average deceleration: ${deceleration_g.toFixed(2)} G's</li>
+                    </ul>
+                </div>
+            `;
+            
+            // Safety assessment
+            if (mass1_impact_fps > 30) {
+                html += `
+                    <div class="warning danger">
+                        <h4>⚠️ HIGH IMPACT VELOCITY - MASS 1</h4>
+                        <ul>
+                            <li>Mass 1 impact at ${mass1_impact_fps.toFixed(1)} ft/s is very high</li>
+                            <li>Metallic airframe may deform or be damaged</li>
+                            <li>Consider larger parachute (>${(diameter * 1.2).toFixed(1)} ft diameter) or higher Cd model (Elliptical or CD 2.2)</li>
+                        </ul>
+                    </div>
+                `;
+            }
+            
+            const terminal_velocity_margin = mass2_impact_fps - mass2_terminal_velocity_fps;
+            
+            if (mass2_impact_fps > 25) {
+                html += `
+                    <div class="warning danger">
+                        <h4>⚠️ CRITICAL - MASS 2 IMPACT RISK</h4>
+                        <ul>
+                            <li>Nose cone impact at ${mass2_impact_fps.toFixed(1)} ft/s may damage payload</li>
+                            <li>Mass 2 terminal velocity alone: ${mass2_terminal_velocity_fps.toFixed(1)} ft/s</li>
+                            <li>Impact is ${terminal_velocity_margin.toFixed(1)} ft/s above terminal velocity</li>
+                            <li><strong>ROOT CAUSE:</strong> Mass 2's terminal velocity (${mass2_terminal_velocity_fps.toFixed(1)} ft/s) is the limiting factor</li>
+                            <li><strong>RECOMMENDATION:</strong> ${mass2_terminal_velocity_fps < 20 ? 
+                                `Mass 2 terminal velocity is too LOW. Use smaller parachute (try ${(diameter * 0.7).toFixed(1)} ft) or add mass to nose cone` : 
+                                `Increase shock cord to ${(shockCordLength * 1.5).toFixed(0)} ft or switch to larger/higher-Cd chute`}</li>
+                        </ul>
+                    </div>
+                `;
+            } else if (mass2_impact_fps > 15) {
+                html += `
+                    <div class="warning">
+                        <h4>⚠️ MODERATE RISK - MASS 2</h4>
+                        <ul>
+                            <li>Nose cone impact at ${mass2_impact_fps.toFixed(1)} ft/s is moderate</li>
+                            <li>Mass 2 terminal velocity alone: ${mass2_terminal_velocity_fps.toFixed(1)} ft/s (${terminal_velocity_margin.toFixed(1)} ft/s above at impact)</li>
+                            <li>Velocity reduced by ${((mass2_velocity_before_fps - mass2_impact_fps) / mass2_velocity_before_fps * 100).toFixed(0)}% during deceleration</li>
+                            <li>Ensure payload is well-padded and secured</li>
+                            <li>Consider tuning Mass 2 terminal velocity to match desired impact speed</li>
+                        </ul>
+                    </div>
+                `;
+            } else {
+                html += `
+                    <div class="warning success">
+                        <h4>✓ ACCEPTABLE IMPACT VELOCITIES</h4>
+                        <ul>
+                            <li>Mass 2 impact at ${mass2_impact_fps.toFixed(1)} ft/s should be recoverable with proper padding</li>
+                            <li>Mass 2 terminal velocity: ${mass2_terminal_velocity_fps.toFixed(1)} ft/s (only ${terminal_velocity_margin.toFixed(1)} ft/s above at impact)</li>
+                            <li>Velocity reduced by ${((mass2_velocity_before_fps - mass2_impact_fps) / mass2_velocity_before_fps * 100).toFixed(0)}% over ${shockCordLength} ft</li>
+                            <li>Average deceleration: ${deceleration_g.toFixed(2)} G's</li>
+                            <li>${terminal_velocity_margin < 5 ? '✓ Mass 2 essentially at terminal velocity - excellent!' : 'Good deceleration profile'}</li>
+                        </ul>
+                    </div>
+                `;
+            }
+            
+            // Deceleration factors
+            html += `
+                <div class="info">
+                    <h4>📊 Deceleration Analysis for Mass 2</h4>
+                    <p><strong>CURRENT CONFIGURATION:</strong></p>
+                    <ul>
+                        <li>Initial velocity (system terminal): ${mass2_velocity_before_fps.toFixed(1)} ft/s</li>
+                        <li>Mass 2 terminal velocity alone: ${mass2_terminal_velocity_fps.toFixed(1)} ft/s</li>
+                        <li>Final impact velocity: ${mass2_impact_fps.toFixed(1)} ft/s</li>
+                        <li>Velocity reduction: ${(mass2_velocity_before_fps - mass2_impact_fps).toFixed(1)} ft/s</li>
+                        <li>Deceleration distance: ${shockCordLength} ft</li>
+                        <li>Average deceleration: ${deceleration_g.toFixed(1)} G's</li>
+                    </ul>
+                    
+                    <p style="margin-top: 10px;"><strong>HOW IT WORKS:</strong></p>
+                    <ul>
+                        <li>When Mass 1 impacts, Mass 2 continues at system velocity (${mass2_velocity_before_fps.toFixed(1)} ft/s)</li>
+                        <li>Mass 2 is now alone under the parachute and starts decelerating toward its terminal velocity (${mass2_terminal_velocity_fps.toFixed(1)} ft/s)</li>
+                        <li>Drag force increases as velocity decreases relative to terminal velocity</li>
+                        <li>Over ${shockCordLength} ft, Mass 2 slows down by ${(mass2_velocity_before_fps - mass2_impact_fps).toFixed(1)} ft/s</li>
+                    </ul>
+                    
+                    <p style="margin-top: 10px;"><strong>FACTORS THAT HELP DECELERATION:</strong></p>
+                    <ul>
+                        <li>Longer shock cord - more distance for drag to slow Mass 2</li>
+                        <li>Lighter Mass 2 - lower terminal velocity = more deceleration</li>
+                        <li>Larger parachute diameter - more drag = faster deceleration</li>
+                        <li>Higher Cd parachute - more effective drag</li>
+                        <li>Lower starting altitude - denser air = more drag</li>
+                    </ul>
+                    
+                    <p style="margin-top: 10px;"><strong>FACTORS THAT HURT DECELERATION:</strong></p>
+                    <ul>
+                        <li>Short shock cord - less distance for drag to work</li>
+                        <li>Heavy Mass 2 - higher terminal velocity = less deceleration potential</li>
+                        <li>Small parachute - insufficient drag</li>
+                        <li>Horizontal drift - adds lateral velocity component</li>
+                        <li>Tangled shock cord - reduces available deceleration distance</li>
+                        <li>Damaged parachute - reduced drag coefficient</li>
+                    </ul>
+                    
+                    <p style="margin-top: 10px;"><strong>RECOMMENDATIONS:</strong></p>
+                    <ul>
+                        <li>Target: Get Mass 2 terminal velocity as close to 20 ft/s as possible</li>
+                        <li>If Mass 2 impact > 25 ft/s, increase parachute size or use higher Cd model</li>
+                        <li>Longer shock cord helps but has diminishing returns (drag asymptotically approaches terminal velocity)</li>
+                        <li>Deploy shock cord using Z-fold to prevent tangling</li>
+                        <li>Add foam crumple zone to nose cone base for final impact protection</li>
+                        <li>Consider dual deployment if single-chute velocities exceed limits</li>
+                    </ul>
+                </div>
+            `;
+            
+            document.getElementById('resultsContainer').innerHTML = html;
+            
+            // Create chart after DOM update
+            setTimeout(() => createChart(altitudeASLData, velocityData), 100);
+        }
+        
+        function createChart(altitudeASLData, velocityData) {
+            // Destroy existing chart
+            if (velocityChart) velocityChart.destroy();
+            
+            // Create data points as {x, y} objects for proper linear scale
+            const dataPoints = [];
+            for (let i = 0; i < altitudeASLData.length; i++) {
+                dataPoints.push({
+                    x: altitudeASLData[i],
+                    y: velocityData[i]
+                });
+            }
+            
+            // Sort by altitude (descending for display)
+            dataPoints.sort((a, b) => b.x - a.x);
+            
+            // Determine appropriate altitude increment based on range
+            const minAlt = Math.min(...altitudeASLData);
+            const maxAlt = Math.max(...altitudeASLData);
+            const altRange = maxAlt - minAlt;
+            
+            let altIncrement;
+            if (altRange > 80000) {
+                altIncrement = 10000;
+            } else if (altRange > 40000) {
+                altIncrement = 5000;
+            } else if (altRange > 15000) {
+                altIncrement = 2000;
+            } else {
+                altIncrement = 1000;
+            }
+            
+            // Velocity vs Altitude chart
+            const ctxVelocity = document.getElementById('velocityChart').getContext('2d');
+            velocityChart = new Chart(ctxVelocity, {
+                type: 'line',
+                data: {
+                    datasets: [{
+                        label: 'Descent Velocity',
+                        data: dataPoints,
+                        borderColor: '#e74c3c',
+                        backgroundColor: 'rgba(231, 76, 60, 0.1)',
+                        borderWidth: 3,
+                        fill: true,
+                        tension: 0.4,
+                        pointRadius: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        x: {
+                            type: 'linear',
+                            position: 'bottom',
+                            reverse: true,
+                            title: {
+                                display: true,
+                                text: 'Altitude ASL (feet)',
+                                font: { size: 14, weight: 'bold' }
+                            },
+                            grid: { 
+                                color: 'rgba(0,0,0,0.05)'
+                            },
+                            ticks: {
+                                stepSize: altIncrement,
+                                callback: function(value) {
+                                    return value.toLocaleString();
+                                },
+                                maxRotation: 0,
+                                minRotation: 0,
+                                font: {
+                                    size: 11
+                                }
+                            }
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: 'Velocity (ft/s)',
+                                font: { size: 14, weight: 'bold' }
+                            },
+                            grid: { color: 'rgba(0,0,0,0.05)' },
+                            ticks: {
+                                font: {
+                                    size: 11
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Calculate on page load
+        window.onload = calculate;
+    </script>
+</body>
+</html>
