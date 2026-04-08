@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Parachute Descent Calculator</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -248,6 +249,38 @@
             font-size: 1.1em;
         }
         
+        .ork-dropzone {
+            border: 2px dashed #b0bec5;
+            border-radius: 6px;
+            padding: 14px;
+            text-align: center;
+            color: #607d8b;
+            font-size: 0.9em;
+            margin-bottom: 18px;
+            cursor: pointer;
+            transition: all 0.2s;
+            background: #fafafa;
+        }
+
+        .ork-dropzone:hover, .ork-dropzone.dragover {
+            border-color: #667eea;
+            background: #eef0fc;
+            color: #34495e;
+        }
+
+        .ork-dropzone strong {
+            color: #2c3e50;
+        }
+
+        .ork-status {
+            margin-top: 8px;
+            font-size: 0.85em;
+            line-height: 1.4;
+        }
+
+        .ork-status.success { color: #155724; }
+        .ork-status.error { color: #721c24; }
+
         @media (max-width: 968px) {
             .content {
                 grid-template-columns: 1fr;
@@ -296,7 +329,14 @@
             
             <div class="panel">
                 <h2>Mass & Recovery System</h2>
-                
+
+                <div class="ork-dropzone" id="orkDropzone">
+                    <strong>Drop .ork file here</strong> or click to browse<br>
+                    <span style="font-size: 0.85em;">Autopopulates Mass 1 & Mass 2 from OpenRocket overrides</span>
+                    <input type="file" id="orkFileInput" accept=".ork" style="display:none;">
+                    <div class="ork-status" id="orkStatus"></div>
+                </div>
+
                 <div class="input-group">
                     <label for="mass1">Mass 1 - Main Body (lbs)</label>
                     <input type="number" id="mass1" value="50" min="1" max="500" step="1">
@@ -375,48 +415,73 @@
             }
             
             // Calculate descent - using numerical integration
-            const dt = 1.0; // time step in seconds
+            const dt = 0.05; // time step in seconds (small enough for Euler stability at all altitudes)
             let altitude = apogeeASL;
             let velocity = 0;
             let time = 0;
-            
+
             // Arrays for graphing
             const timeData = [];
             const altitudeData = [];
             const velocityData = [];
             const altitudeASLData = [];
-            
+            let nextRecordTime = 0; // track when to record data points
+
+            // Export data at 1-second intervals
+            const exportData = [];
+            let nextExportTime = 0;
+
             // Descend to ground level
             while (altitude > groundASL) {
                 const vt = terminalVelocity(totalMass_kg, altitude);
                 const rho = getAirDensity(altitude);
-                
-                // Calculate drag force and acceleration more accurately
+
+                // Calculate drag force and acceleration
                 const drag_force = 0.5 * rho * Cd * area_m2 * velocity * velocity;
                 const weight = totalMass_kg * 9.80665;
                 const net_force = weight - drag_force;
                 const acceleration = net_force / totalMass_kg;
-                
+
                 // Update velocity and altitude
                 velocity += acceleration * dt;
-                
+
                 // Ensure velocity doesn't exceed reasonable bounds
                 if (velocity > vt * 1.5) {
                     velocity = vt * 1.5;
                 }
-                
+
                 const altitude_change = velocity * dt * 3.28084; // convert m/s to ft
                 altitude -= altitude_change;
                 time += dt;
-                
+
                 // Store data for graphs (every 5 seconds to keep smooth but not too dense)
-                if (time % 5 === 0 || altitude <= groundASL + 100 || time < 10) {
+                if (time >= nextRecordTime || altitude <= groundASL + 100 || time < 10 * dt) {
                     timeData.push(time / 60); // convert to minutes
                     altitudeData.push(Math.max(0, altitude - groundASL)); // AGL
                     altitudeASLData.push(Math.round(altitude)); // ASL for velocity chart
                     velocityData.push(Math.abs(velocity) * 3.28084); // ft/s
+                    nextRecordTime = time + 5; // record every 5 seconds
                 }
-                
+
+                // Record export data at 1-second intervals
+                if (time >= nextExportTime) {
+                    const vt_export = terminalVelocity(totalMass_kg, Math.max(altitude, groundASL));
+                    const rho_export = getAirDensity(Math.max(altitude, groundASL));
+                    exportData.push({
+                        time_s: Math.round(time),
+                        time_min: (time / 60).toFixed(3),
+                        altitude_asl_ft: Math.round(altitude),
+                        altitude_agl_ft: Math.round(Math.max(0, altitude - groundASL)),
+                        velocity_fps: (Math.abs(velocity) * 3.28084).toFixed(2),
+                        velocity_ms: Math.abs(velocity).toFixed(3),
+                        terminal_velocity_fps: (vt_export * 3.28084).toFixed(2),
+                        air_density_kgm3: rho_export.toFixed(5),
+                        drag_force_N: (0.5 * rho_export * Cd * area_m2 * velocity * velocity).toFixed(2),
+                        net_accel_ms2: acceleration.toFixed(4)
+                    });
+                    nextExportTime = time + 1;
+                }
+
                 // Prevent overshooting
                 if (altitude < groundASL) {
                     altitude = groundASL;
@@ -491,7 +556,18 @@
             
             // Descent time
             const descentTime_min = time / 60;
-            
+
+            // Cache summary for markdown export
+            window._summaryResults = {
+                descentTime_min,
+                mass1_impact_fps,
+                mass2_impact_fps,
+                mass2_terminal_velocity_fps,
+                deceleration_g,
+                shock_load_g,
+                peak_force_N
+            };
+
             // Display results
             let html = '<div class="result-grid">';
             
@@ -529,10 +605,20 @@
             
             html += '</div>';
             
-            // Add chart
+            // Store export data for CSV download
+            window._exportData = exportData;
+
+            // Add chart with export button
             html += `
                 <div class="chart-container" style="margin-top: 20px;">
-                    <h3>Descent Velocity vs Altitude ASL</h3>
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <h3 style="margin: 0;">Descent Velocity vs Altitude ASL</h3>
+                        <div style="display: flex; gap: 8px;">
+                            <button onclick="copyMarkdown(event)" style="padding: 6px 16px; background: #667eea; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 13px;">Copy Markdown</button>
+                            <button onclick="copyChart(event)" style="padding: 6px 16px; background: #764ba2; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 13px;">Copy Chart</button>
+                            <button onclick="exportCSV()" style="padding: 6px 16px; background: #2c3e50; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 13px;">Export CSV</button>
+                        </div>
+                    </div>
                     <canvas id="velocityChart"></canvas>
                 </div>
             `;
@@ -824,8 +910,537 @@
             });
         }
         
+        function exportCSV() {
+            const data = window._exportData;
+            if (!data || data.length === 0) return;
+
+            // Read current inputs for config header
+            const apogeeAGL = document.getElementById('apogee').value;
+            const groundASL = document.getElementById('groundASL').value;
+            const chuteSelect = document.getElementById('chuteType');
+            const chuteLabel = chuteSelect.options[chuteSelect.selectedIndex].text;
+            const diameter = document.getElementById('chuteDiameter').value;
+            const mass1 = document.getElementById('mass1').value;
+            const mass2 = document.getElementById('mass2').value;
+            const shockCord = document.getElementById('shockCord').value;
+
+            const configLines = [
+                '# Parachute Descent Profile',
+                '#',
+                '# Flight Parameters',
+                `# Apogee Altitude (AGL):,${apogeeAGL} ft`,
+                `# Ground Elevation (ASL):,${groundASL} ft`,
+                `# Parachute Type:,${chuteLabel}`,
+                `# Parachute Diameter:,${diameter} ft`,
+                '#',
+                '# Mass & Recovery System',
+                `# Mass 1 - Main Body:,${mass1} lbs`,
+                `# Mass 2 - Nose Cone:,${mass2} lbs`,
+                `# Total Mass:,${(parseFloat(mass1) + parseFloat(mass2)).toFixed(1)} lbs`,
+                `# Shock Cord Length:,${shockCord} ft`,
+                '#'
+            ];
+
+            const headers = [
+                'Time (s)', 'Time (min)',
+                'Altitude ASL (ft)', 'Altitude AGL (ft)',
+                'Velocity (ft/s)', 'Velocity (m/s)',
+                'Terminal Velocity (ft/s)',
+                'Air Density (kg/m³)',
+                'Drag Force (N)',
+                'Net Acceleration (m/s²)'
+            ];
+            const rows = data.map(r => [
+                r.time_s, r.time_min,
+                r.altitude_asl_ft, r.altitude_agl_ft,
+                r.velocity_fps, r.velocity_ms,
+                r.terminal_velocity_fps,
+                r.air_density_kgm3,
+                r.drag_force_N,
+                r.net_accel_ms2
+            ].join(','));
+            const csv = [...configLines, headers.join(','), ...rows].join('\n');
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'descent_profile.csv';
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        async function copyMarkdown(evt) {
+            const r = window._summaryResults;
+            if (!r) { alert('Run Calculate first.'); return; }
+
+            const apogeeAGL = document.getElementById('apogee').value;
+            const groundASL = document.getElementById('groundASL').value;
+            const chuteSelect = document.getElementById('chuteType');
+            const chuteLabel = chuteSelect.options[chuteSelect.selectedIndex].text;
+            const diameter = document.getElementById('chuteDiameter').value;
+            const mass1 = document.getElementById('mass1').value;
+            const mass2 = document.getElementById('mass2').value;
+            const shockCord = document.getElementById('shockCord').value;
+            const totalMass = (parseFloat(mass1) + parseFloat(mass2)).toFixed(1);
+            const date = new Date().toISOString().slice(0, 10);
+            const peak_force_lb = (r.peak_force_N * 0.224809).toFixed(0);
+
+            const md = `## Parachute Descent Config — ${date}
+
+**Flight Parameters**
+
+| Parameter | Value |
+|---|---|
+| Apogee (AGL) | ${parseInt(apogeeAGL).toLocaleString()} ft |
+| Ground elevation (ASL) | ${parseInt(groundASL).toLocaleString()} ft |
+| Parachute | ${chuteLabel} |
+| Diameter | ${diameter} ft |
+
+**Mass & Recovery**
+
+| Component | Value |
+|---|---|
+| Mass 1 — main body | ${mass1} lb |
+| Mass 2 — nose cone | ${mass2} lb |
+| Total mass | ${totalMass} lb |
+| Shock cord length | ${shockCord} ft |
+
+**Results**
+
+| Metric | Value |
+|---|---|
+| Descent time | ${r.descentTime_min.toFixed(1)} min |
+| Mass 1 impact velocity | ${r.mass1_impact_fps.toFixed(1)} ft/s |
+| Mass 2 impact velocity | ${r.mass2_impact_fps.toFixed(1)} ft/s |
+| Mass 2 terminal velocity (alone) | ${r.mass2_terminal_velocity_fps.toFixed(1)} ft/s |
+| Average deceleration on cord | ${r.deceleration_g.toFixed(2)} G |
+| Peak shock load | ${r.shock_load_g.toFixed(1)} G (${peak_force_lb} lb) |
+
+**Descent Velocity vs Altitude**
+
+> _Paste chart image here (click "Copy Chart" then paste in Notion)_
+`;
+
+            try {
+                await navigator.clipboard.writeText(md);
+                const btn = evt.target;
+                const orig = btn.textContent;
+                btn.textContent = '✓ Copied — paste into Notion';
+                btn.style.background = '#28a745';
+                setTimeout(() => {
+                    btn.textContent = orig;
+                    btn.style.background = '#667eea';
+                }, 2000);
+            } catch (e) {
+                alert('Clipboard copy failed: ' + e.message);
+            }
+        }
+
+        async function copyChart(evt) {
+            const canvas = document.getElementById('velocityChart');
+            if (!canvas) { alert('Run Calculate first.'); return; }
+
+            // Composite onto white background — Chart.js canvas is transparent,
+            // which looks bad in Notion's dark mode and most other contexts.
+            const tmp = document.createElement('canvas');
+            tmp.width = canvas.width;
+            tmp.height = canvas.height;
+            const ctx = tmp.getContext('2d');
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, tmp.width, tmp.height);
+            ctx.drawImage(canvas, 0, 0);
+
+            tmp.toBlob(async (blob) => {
+                if (!blob) { alert('Failed to capture chart image.'); return; }
+                try {
+                    await navigator.clipboard.write([
+                        new ClipboardItem({ 'image/png': blob })
+                    ]);
+                    const btn = evt.target;
+                    const orig = btn.textContent;
+                    btn.textContent = '✓ Chart copied — paste in Notion';
+                    btn.style.background = '#28a745';
+                    setTimeout(() => {
+                        btn.textContent = orig;
+                        btn.style.background = '#764ba2';
+                    }, 2000);
+                } catch (e) {
+                    alert('Clipboard image copy failed: ' + e.message + '\n\nThis browser may not support image clipboard writes. Try Chrome or Edge.');
+                }
+            }, 'image/png');
+        }
+
+        // ===== .ork file parser (computes masses from geometry × material density) =====
+
+        function childText(element, tagName) {
+            for (const child of element.children) {
+                if (child.tagName === tagName) return child.textContent;
+            }
+            return null;
+        }
+
+        function parseNum(text) {
+            // Handles OpenRocket's "auto 0.0762" syntax — strip "auto" prefix
+            if (text === null || text === undefined) return null;
+            text = text.trim();
+            if (text.startsWith('auto')) {
+                text = text.slice(4).trim();
+                if (!text) return null;
+            }
+            const v = parseFloat(text);
+            return isNaN(v) ? null : v;
+        }
+
+        function childNum(element, tagName) {
+            return parseNum(childText(element, tagName));
+        }
+
+        function materialInfo(element) {
+            // Returns {density, type} from the <material> child element's attributes.
+            for (const child of element.children) {
+                if (child.tagName === 'material') {
+                    const d = child.getAttribute('density');
+                    const t = child.getAttribute('type') || 'bulk';
+                    return { density: d ? parseFloat(d) : null, type: t };
+                }
+            }
+            return { density: null, type: null };
+        }
+
+        // ---- per-component mass formulas (return mass in kg) ----
+
+        function cylindricalShellMass(el) {
+            // bodytube, innertube, tubecoupler, launchlug
+            const L = childNum(el, 'length');
+            const R = childNum(el, 'radius') ?? childNum(el, 'outerradius');
+            const t = childNum(el, 'thickness');
+            const { density } = materialInfo(el);
+            if (L == null || R == null || t == null || density == null) return 0;
+            const inner = Math.max(0, R - t);
+            const volume = Math.PI * (R*R - inner*inner) * L;
+            return volume * density;
+        }
+
+        function annularDiscMass(el) {
+            // centeringring, engineblock
+            const L = childNum(el, 'length');
+            const R = childNum(el, 'outerradius');
+            const r = childNum(el, 'innerradius');
+            const { density } = materialInfo(el);
+            if (L == null || R == null || r == null || density == null) return 0;
+            return Math.PI * (R*R - r*r) * L * density;
+        }
+
+        function solidDiscMass(el) {
+            // bulkhead
+            const L = childNum(el, 'length');
+            const R = childNum(el, 'outerradius') ?? childNum(el, 'radius');
+            const { density } = materialInfo(el);
+            if (L == null || R == null || density == null) return 0;
+            return Math.PI * R * R * L * density;
+        }
+
+        function noseconeShapeRadius(shape, x, L, R) {
+            if (x <= 0) return 0;
+            if (x >= L) return R;
+            const u = x / L;
+            if (shape === 'conical') return R * u;
+            if (shape === 'ogive') {
+                const rho = (R*R + L*L) / (2*R);
+                return Math.sqrt(rho*rho - (L - x)*(L - x)) - (rho - R);
+            }
+            if (shape === 'ellipsoid') {
+                return R * Math.sqrt(1 - ((L - x) / L) ** 2);
+            }
+            if (shape === 'parabolic') {
+                return R * (2*u - u*u);
+            }
+            if (shape === 'haack') {
+                const theta = Math.acos(1 - 2*u);
+                return R / Math.sqrt(Math.PI) * Math.sqrt(theta - Math.sin(2*theta)/2);
+            }
+            return R * u;  // fallback linear
+        }
+
+        function noseconeSurfaceArea(shape, L, R, n) {
+            n = n || 200;
+            const dx = L / n;
+            let s = 0;
+            let prev_r = noseconeShapeRadius(shape, 0, L, R);
+            for (let i = 1; i <= n; i++) {
+                const x = i * dx;
+                const r = noseconeShapeRadius(shape, x, L, R);
+                const dr = r - prev_r;
+                const ds = Math.sqrt(dx*dx + dr*dr);
+                s += 2 * Math.PI * (r + prev_r) / 2 * ds;
+                prev_r = r;
+            }
+            return s;
+        }
+
+        function noseconeMass(el) {
+            const L = childNum(el, 'length');
+            const R = childNum(el, 'aftradius') ?? childNum(el, 'radius');
+            const t = childNum(el, 'thickness');
+            const shape = (childText(el, 'shape') || 'ogive').trim();
+            const { density } = materialInfo(el);
+            if (L == null || R == null || t == null || density == null) return 0;
+
+            const S = noseconeSurfaceArea(shape, L, R);
+            let mass = S * t * density;
+
+            // Aft shoulder is a cylindrical shell extension that fits inside the body tube
+            const asr = childNum(el, 'aftshoulderradius');
+            const asl = childNum(el, 'aftshoulderlength');
+            const ast = childNum(el, 'aftshoulderthickness');
+            if (asr != null && asl != null && ast != null && asl > 0) {
+                const inner = Math.max(0, asr - ast);
+                mass += Math.PI * (asr*asr - inner*inner) * asl * density;
+            }
+            return mass;
+        }
+
+        function trapezoidFinMass(el) {
+            const Lr = childNum(el, 'rootchord');
+            const Lt = childNum(el, 'tipchord');
+            const span = childNum(el, 'height');
+            const t = childNum(el, 'thickness');
+            const n = parseInt(childText(el, 'fincount') || '0', 10);
+            const { density } = materialInfo(el);
+            if (Lr == null || Lt == null || span == null || t == null || density == null || n === 0) return 0;
+            const area = (Lr + Lt) / 2 * span;
+            return n * area * t * density;
+        }
+
+        function ellipticalFinMass(el) {
+            const Lr = childNum(el, 'rootchord');
+            const span = childNum(el, 'height');
+            const t = childNum(el, 'thickness');
+            const n = parseInt(childText(el, 'fincount') || '0', 10);
+            const { density } = materialInfo(el);
+            if (Lr == null || span == null || t == null || density == null || n === 0) return 0;
+            const area = Math.PI * Lr * span / 4;
+            return n * area * t * density;
+        }
+
+        function freeformFinMass(el) {
+            const t = childNum(el, 'thickness');
+            const n = parseInt(childText(el, 'fincount') || '0', 10);
+            const { density } = materialInfo(el);
+            if (t == null || density == null || n === 0) return 0;
+
+            let finpoints = null;
+            for (const child of el.children) {
+                if (child.tagName === 'finpoints') { finpoints = child; break; }
+            }
+            if (!finpoints) return 0;
+
+            const pts = [];
+            for (const p of finpoints.children) {
+                if (p.tagName === 'point') {
+                    const x = parseFloat(p.getAttribute('x'));
+                    const y = parseFloat(p.getAttribute('y'));
+                    if (!isNaN(x) && !isNaN(y)) pts.push([x, y]);
+                }
+            }
+            if (pts.length < 3) return 0;
+
+            // Shoelace
+            let area = 0;
+            for (let i = 0; i < pts.length; i++) {
+                const [x1, y1] = pts[i];
+                const [x2, y2] = pts[(i + 1) % pts.length];
+                area += x1 * y2 - x2 * y1;
+            }
+            area = Math.abs(area) / 2;
+            return n * area * t * density;
+        }
+
+        function shockcordMass(el) {
+            const L = childNum(el, 'cordlength');
+            const { density, type } = materialInfo(el);
+            if (L == null || density == null || type !== 'line') return 0;
+            return L * density;
+        }
+
+        function parachuteMass(el) {
+            const D = childNum(el, 'diameter');
+            const { density, type } = materialInfo(el);
+            if (D == null || density == null || type !== 'surface') return 0;
+            return Math.PI * (D / 2) ** 2 * density;
+        }
+
+        function streamerMass(el) {
+            const L = childNum(el, 'striplength');
+            const W = childNum(el, 'stripwidth');
+            const { density, type } = materialInfo(el);
+            if (L == null || W == null || density == null || type !== 'surface') return 0;
+            return L * W * density;
+        }
+
+        function railbuttonMass(el) {
+            // Tiny — approximate as 5g unless overridden
+            return 0.005;
+        }
+
+        const COMPUTE_FNS = {
+            bodytube: cylindricalShellMass,
+            innertube: cylindricalShellMass,
+            tubecoupler: cylindricalShellMass,
+            launchlug: cylindricalShellMass,
+            centeringring: annularDiscMass,
+            engineblock: annularDiscMass,
+            bulkhead: solidDiscMass,
+            nosecone: noseconeMass,
+            trapezoidfinset: trapezoidFinMass,
+            ellipticalfinset: ellipticalFinMass,
+            freeformfinset: freeformFinMass,
+            shockcord: shockcordMass,
+            parachute: parachuteMass,
+            streamer: streamerMass,
+            railbutton: railbuttonMass,
+        };
+
+        function componentOwnMass(el) {
+            // Returns mass for this component alone, honoring overrides and masscomponent.
+            const overrideMass = childText(el, 'overridemass');
+            if (overrideMass !== null) {
+                const v = parseFloat(overrideMass);
+                if (!isNaN(v)) return v;
+            }
+            if (el.tagName === 'masscomponent') {
+                const m = childText(el, 'mass');
+                if (m !== null) {
+                    const v = parseFloat(m);
+                    if (!isNaN(v)) return v;
+                }
+                return 0;
+            }
+            const fn = COMPUTE_FNS[el.tagName];
+            return fn ? fn(el) : 0;
+        }
+
+        function sumSubtree(el) {
+            // Returns { mass, count } summing this element and all nested components.
+            let mass = componentOwnMass(el);
+            let count = mass > 0 ? 1 : 0;
+
+            // Honor <overridesubcomponentsmass>true: override covers entire subtree
+            let skipChildren = false;
+            if (childText(el, 'overridemass') !== null) {
+                const sub = (childText(el, 'overridesubcomponentsmass') || '').trim();
+                if (sub === 'true') skipChildren = true;
+            }
+
+            if (!skipChildren) {
+                for (const child of el.children) {
+                    if (child.tagName === 'subcomponents') {
+                        for (const grandchild of child.children) {
+                            const r = sumSubtree(grandchild);
+                            mass += r.mass;
+                            count += r.count;
+                        }
+                    }
+                }
+            }
+            return { mass, count };
+        }
+
+        async function parseOrkFile(file) {
+            const status = document.getElementById('orkStatus');
+            status.className = 'ork-status';
+            status.textContent = 'Parsing ' + file.name + '...';
+
+            try {
+                const zip = await JSZip.loadAsync(file);
+                const orkEntry = zip.file('rocket.ork');
+                if (!orkEntry) throw new Error('rocket.ork not found inside archive');
+                const xmlText = await orkEntry.async('text');
+                const doc = new DOMParser().parseFromString(xmlText, 'text/xml');
+
+                const parseError = doc.querySelector('parsererror');
+                if (parseError) throw new Error('Invalid XML in rocket.ork');
+
+                const rocket = doc.querySelector('rocket');
+                if (!rocket) throw new Error('No <rocket> element found');
+
+                // Nose cone subtree(s) — supports multi-stage rockets
+                const noseCones = doc.querySelectorAll('nosecone');
+                let noseConeKg = 0;
+                let noseCount = 0;
+                noseCones.forEach(nc => {
+                    const r = sumSubtree(nc);
+                    noseConeKg += r.mass;
+                    noseCount += r.count;
+                });
+
+                // Total dry mass = entire rocket subtree
+                const totalResult = sumSubtree(rocket);
+                const totalKg = totalResult.mass;
+                const restKg = totalKg - noseConeKg;
+
+                if (totalKg <= 0) {
+                    throw new Error('Computed total mass is zero. The file may use unrecognized component types or be missing material density attributes.');
+                }
+                if (noseConeKg <= 0) {
+                    throw new Error('No nose cone found in this .ork file.');
+                }
+                if (restKg <= 0) {
+                    throw new Error('Rest-of-vehicle mass is non-positive — nose cone subtree larger than total. Check the file structure.');
+                }
+
+                const KG_TO_LB = 2.20462;
+                const noseLb = Math.round(noseConeKg * KG_TO_LB);
+                const restLb = Math.round(restKg * KG_TO_LB);
+
+                document.getElementById('mass1').value = restLb;
+                document.getElementById('mass2').value = noseLb;
+
+                status.className = 'ork-status success';
+                status.innerHTML =
+                    '✓ Loaded <strong>' + file.name + '</strong><br>' +
+                    'Nose cone subtree: ' + noseLb + ' lb (' + noseConeKg.toFixed(2) + ' kg, ' + noseCount + ' components)<br>' +
+                    'Rest of vehicle: ' + restLb + ' lb (' + restKg.toFixed(2) + ' kg)<br>' +
+                    'Total dry mass: ' + (noseLb + restLb) + ' lb (' + totalResult.count + ' components, computed from geometry + overrides)';
+
+                calculate();
+            } catch (e) {
+                status.className = 'ork-status error';
+                status.textContent = '✗ ' + e.message;
+            }
+        }
+
+        function setupOrkDropzone() {
+            const dz = document.getElementById('orkDropzone');
+            const input = document.getElementById('orkFileInput');
+
+            dz.addEventListener('click', () => input.click());
+
+            input.addEventListener('change', (e) => {
+                if (e.target.files[0]) parseOrkFile(e.target.files[0]);
+            });
+
+            dz.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                dz.classList.add('dragover');
+            });
+
+            dz.addEventListener('dragleave', () => {
+                dz.classList.remove('dragover');
+            });
+
+            dz.addEventListener('drop', (e) => {
+                e.preventDefault();
+                dz.classList.remove('dragover');
+                if (e.dataTransfer.files[0]) parseOrkFile(e.dataTransfer.files[0]);
+            });
+        }
+
         // Calculate on page load
-        window.onload = calculate;
+        window.onload = () => {
+            setupOrkDropzone();
+            calculate();
+        };
     </script>
 </body>
 </html>
